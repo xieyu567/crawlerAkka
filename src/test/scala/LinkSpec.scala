@@ -17,10 +17,10 @@ class LinkSpec extends TestKit(ActorSystem("LinkSpec"))
 
     "parse test" should {
         "send back a message" in {
-            within(10 second) {
+            within(11 second) {
                 val crawlerActor = system.actorOf(Props[CrawlerActor])
                 crawlerActor ! CrawlPage("https://copymanga.com/comic/wangxianglaoshi")
-                expectMsg("page parse done")
+                expectMsgType[Vector[String]]
             }
         }
     }
