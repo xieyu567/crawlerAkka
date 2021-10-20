@@ -21,7 +21,7 @@ class CrawlerActor extends Actor with ActorLogging {
         case CrawlPage(url) =>
             val ParseRef = context.actorOf(Props[ParseActor], "parseActor")
             log.info(s"starting parse $url")
-            ParseRef ! ParsePage(url)
+            ParseRef ! ParseHomePage(url)
         case msg =>
             log.info(s"$msg")
     }

@@ -1,6 +1,6 @@
 package com.effe
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import com.effe.DownloadImg.DownloadBook
 import org.jsoup.Jsoup
 import org.openqa.selenium.firefox.{FirefoxDriver, FirefoxOptions}
@@ -13,11 +13,11 @@ import scala.jdk.CollectionConverters._
 object ParseActor {
     sealed trait Message
 
-    case class ParsePage(url: String) extends Message
+    case class ParseHomePage(url: String) extends Message
 
-    case class ParseTask(id: Int, url: String) extends Message
+    case class ParseImgTask(url: String) extends Message
 
-    case class ParseTaskReply(id: Int, res: Vector[String], title: String) extends Message
+    case class ParseTaskReply(title: String, res: Vector[String]) extends Message
 }
 
 class ParseActor extends Actor with ActorLogging {
@@ -27,44 +27,25 @@ class ParseActor extends Actor with ActorLogging {
     implicit val ec: ExecutionContextExecutor = context.dispatcher
 
     override def receive: Receive = {
-        case ParsePage(url) =>
-            val senderRef = sender()
+        case ParseHomePage(url) =>
             // create a firefox driver with headless
             val driver: FirefoxDriver = initWebDriver()
             val res: Vector[String] = parseHtml(getSourceCode(driver, url))
             driver.quit()
-            senderRef ! "page parse done"
-            val childrenRef = for (i <- 1 to res.length) yield context.actorOf(Props[ParseBookActor], s"book_$i")
-            context.become(withParseBook(childrenRef, 0, 1, Map()))
-        case (title: String, links: Vector[String]) =>
+            log.info("page parse done")
+            val childrenRef = context.actorOf(Props[ParseBookActor])
+            res.foreach(url => childrenRef ! url)
+        case ParseTaskReply(title, links) =>
             val downloadRef = context.actorOf(Props[DownloadImg], "downloader")
             downloadRef ! DownloadBook(title, links)
     }
 
-    def withParseBook(childrenRef: Seq[ActorRef], bookIndex: Int, childIndex: Int, requestMap: Map[Int, ActorRef]): Receive = {
-        case url: String =>
-            log.info(s"start parsing book $bookIndex in parseActor$childIndex")
-            val originalSender = sender()
-            val task = ParseTask(bookIndex, url)
-            val childRef = childrenRef(childIndex)
-            childRef ! task
-            val nextChildIndex = childIndex + 1
-            val nextBook = bookIndex + 1
-            val newRequest = requestMap + (bookIndex -> originalSender)
-            context.become(withParseBook(childrenRef, nextBook, nextChildIndex, newRequest))
-        case ParseTaskReply(id, links, title) =>
-            log.info(s"I have received a reply for book $title with res $links")
-            val originalSender = requestMap(id)
-            originalSender ! (title, links)
-            context.become(withParseBook(childrenRef, bookIndex, childIndex, requestMap - id))
-    }
-
     class ParseBookActor extends Actor with ActorLogging {
         override def receive: Receive = {
-            case ParseTask(id, url) =>
-                log.info(s"I have received book link $id")
+            case ParseImgTask(url) =>
+                log.info(s"I have received book link $url")
                 val (title, links) = findAllImg(url)
-                sender() ! ParseTaskReply(id, links, title)
+                sender() ! ParseTaskReply(title, links)
         }
     }
 
@@ -93,10 +74,10 @@ class ParseActor extends Actor with ActorLogging {
         allLinks.toVector
     }
 
-    private def findAllImg(url: String): (String, Vector[String]) = {
+    private def findAllImg(bookUrl: String): (String, Vector[String]) = {
         val driver: FirefoxDriver = initWebDriver()
 
-        driver.get(url)
+        driver.get(bookUrl)
         val totalImgCount = driver.findElement(By.cssSelector("span.comicCount")).getText.toInt
 
         /*
