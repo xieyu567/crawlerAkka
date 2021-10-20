@@ -23,7 +23,7 @@ class CrawlerActor extends Actor with ActorLogging {
             log.info(s"starting parse $url")
             ParseRef ! ParseMessage(url)
         case msg =>
-            log.info(s"$msg get")
+            log.info(s"$msg")
     }
 }
 
