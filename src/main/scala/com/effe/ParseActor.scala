@@ -7,7 +7,6 @@ import org.openqa.selenium.firefox.{FirefoxDriver, FirefoxOptions}
 import org.openqa.selenium.interactions.Actions
 import org.openqa.selenium.{By, Keys, PageLoadStrategy}
 
-import scala.annotation.tailrec
 import scala.concurrent.ExecutionContextExecutor
 import scala.jdk.CollectionConverters._
 
@@ -103,22 +102,17 @@ class ParseActor extends Actor with ActorLogging {
         /*
         repeat sending keys to refresh page, until refresh all images
          */
-        @tailrec
-        def refreshPage(linksCount: Int): Unit = {
-            if (linksCount == totalImgCount) return
-            else {
-                val action = new Actions(driver)
-                val keyDown = action.sendKeys(Keys.END).build()
-                val keyUp = action.sendKeys(Keys.HOME).build()
-                keyUp.perform()
-                Thread.sleep(1000)
-                keyDown.perform()
-                Thread.sleep(1000)
-                val linksCount = driver.findElements(By.tagName("li")).asScala.length
-                refreshPage(linksCount)
-            }
+        var linksCount = 0
+        while (linksCount < totalImgCount) {
+            val action = new Actions(driver)
+            val keyDown = action.sendKeys(Keys.END).build()
+            val keyUp = action.sendKeys(Keys.HOME).build()
+            keyUp.perform()
+            Thread.sleep(1000)
+            keyDown.perform()
+            Thread.sleep(1000)
+            linksCount = driver.findElements(By.tagName("li")).asScala.length
         }
-        refreshPage(0)
 
         val sourceCode = Option(driver.getPageSource).getOrElse("")
         val parseDoc = Jsoup.parse(sourceCode)
